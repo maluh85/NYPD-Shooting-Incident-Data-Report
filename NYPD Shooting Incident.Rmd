@@ -1,0 +1,120 @@
+---
+title: "NYPD Shooting Incident"
+author: "MOL"
+date: "2022-11-28"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## NYP Shooting Incident
+
+The dataset that is used for analysis within this project, lists every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year. 
+The objective of this report it to identify; which borough has the largest number of incidents ,whether there's a relationship between boroughs and victims age group , and lastly, whether there's a relationship between boroughs and murder cases. The first step in the analysis is to import the dataset in a reproducible manner.
+
+```{r get_data, echo=TRUE, message=FALSE}
+library(lubridate)
+library(tidyverse)
+NYPD_data <- read.csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv")
+```
+
+## Tidying and Transforming the Data
+
+Adding a summary of the data revealed some insights into the dataset. Key changes are made for the following:
+
+-   *OCCUR_DATE* is a character string and not a date type, therefore it needs to be changed into a date type.
+
+-   Since *LOCATION_DESC* has more than half of the values as null then I believe its appropriate to drop the entire column.
+
+-   Although *PERP_AGE_GROUP*,*PERP_SEX* & *PERP_RACE* are variables that also have various rows with null values, given the importance of **any** information relating to the perpetrator of the crime its best that those variables remain within the dataset.
+
+-   And then lastly, converting all categorical variables into factor data type.
+
+```{r transform_data, echo=TRUE}
+summary(NYPD_data)
+#converting OCCUR_DATE to date data type
+NYPD_data$OCCUR_DATE <- as.Date(NYPD_data$OCCUR_DATE, format="%m/%d/%Y")
+
+#removing location_desc and jurisdiction_code
+NYPD_data=NYPD_data[-c(7)]
+
+#converting categorical variables to character data type
+NYPD_data <- NYPD_data %>%
+  mutate(BORO = as.factor(BORO),
+    PERP_AGE_GROUP = as.factor(PERP_AGE_GROUP),
+    PERP_SEX = as.factor(PERP_SEX),
+    PERP_RACE = as.factor(PERP_RACE),
+    PERP_AGE_GROUP = as.factor(PERP_AGE_GROUP),
+    VIC_AGE_GROUP = as.factor(VIC_AGE_GROUP),
+    VIC_SEX = as.factor(VIC_SEX),
+    VIC_RACE = as.factor(VIC_RACE)
+    )
+
+#filtering out observations for Unknown victim age group
+NYPD_data <- NYPD_data%>%
+filter(VIC_AGE_GROUP != 'UNKNOWN')
+```
+
+To tackle the objectives set out at the beginning, the variables that are needed are BORO,VIC_AGE_GROUP and STATISTICAL_MURDER_FLAG, therefore I will select only these columns from the dataset.
+
+```{r data_analysis_visualisation, echo=TRUE, message=FALSE}
+NYPD_data2 <- NYPD_data %>% select(BORO,VIC_AGE_GROUP, STATISTICAL_MURDER_FLAG) 
+#summary of the new dataset
+summary(NYPD_data2)
+
+```
+
+## Data Analysis and Visualisations
+
+The first objective is to determine which borough has the largest number of incidents. From the graph below, its very clear that the borough with the largest number of shootings is Brooklyn and Staten Island has the lowest number of shootings.
+
+```{r boroughs, echo=TRUE}
+ggplot(NYPD_data2) + 
+  geom_bar(aes(x = BORO), fill = "dark red") +
+  labs(x="Boroughs", y="Number of shooting  incidents between 2006 and 2021")
+```
+
+Now I will plot the distribution of incidents by Victims Age Group and Borough and analyse whether there is a correlation between these two variables.
+
+```{r boro_vs_victimage,echo=TRUE}
+ggplot(NYPD_data2, aes(x =BORO, fill = VIC_AGE_GROUP)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Plot of Incidents by Victims Age Group and Borough")
+
+```
+
+The above plot shows that in almost all boroughs most of the victims in shooting incidents are victims aged between 25-44 years old, closely followed by victims within the age group of 18-24 years old. In all the boroughs, the victims that are the least susceptible to shooting incidents are aged 65 and older. Now we will look at which borough has the most murder cases.
+
+```{r race_vs_incidents, echo=TRUE}
+ggplot(NYPD_data2, aes(x = BORO, fill = STATISTICAL_MURDER_FLAG)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Borough and Murder Cases")+theme(axis.text.x = element_text(angle=90, hjust=1))
+
+```
+
+Although most of the shooting incidents in each borough were not murder cases we can still see that most of the murder cases were in Brooklyn, showing similar trends to the plot of incidents by victims age group and borough. Let's draw conclusions on whether or not there are relationships between these variables.
+
+## Modeling Data
+
+To draw any conclusions, since the selected variables are all categorical, using Chi-Squared test of independence is a good way of checking if there is any relationship between Borough and Victim Age group. Let H0: No relationship between Borough And Victim Age Group and Ha: Relationship between Borough and Victim Age group. We will do the same Borough and Murder cases.
+
+```{r Chi_Square_Test, echo=TRUE, warning=FALSE}
+chi_t1 <- chisq.test(NYPD_data2$BORO, NYPD_data2$VIC_AGE_GROUP)
+chi_t2 <- chisq.test(NYPD_data2$BORO,NYPD_data2$STATISTICAL_MURDER_FLAG)
+chi_t1
+chi_t2
+```
+
+## Conclusion
+
+From the above analysis, we saw that there boroughs with the most amount of shooting, namely Brooklyn, and the least was Staten Island. This an indication of how resources should be distributed, so in this case, more police force would be needed in Brooklyn since there are more shootings in this area compared to any other area.
+
+With a significance level alpha = 0.05, in the case of BORO vs VIC_AGE_GROUP there isn't a correlation between these variables because the p-value \< 0.05, so we reject the null hypothesis, meaning that there are not any boroughs in which most incidents belong to particular age group of victims. On the other hand, in the instance of BORO vs STATISTICAL_MURDER_FLAG, since the p-value \> 0.05 we do not reject the null hypothesis, this indicates that there is a relationship between boroughs and murder cases. Meaning that there are particular boroughs in which most of the shooting incidents are murder cases.
+
+## Bias Identification
+
+Personally, I had no prior knowledge about New York and it's inner information of which area and neighborhood is safer than the other.However, I do know that the NYPD has been accused of racial bias and mistreatment towards minority groups. With that in the back of my mind, I thought that they may be some biases within the data and how the data was collected. However it cannot be confirmed that that was the case within this particular dataset, therefore I drew conclusions simply based on what the data presented and avoided making any false or misleading conclusions.
